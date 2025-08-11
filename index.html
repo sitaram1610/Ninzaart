@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NINZA ART - Where Your Imagination Becomes Art</title>
+
+    <!-- 
+      README: How to Set Up Your NINZA ART Platform
+      
+      1.  **Firebase Configuration**:
+          - The `firebaseConfig` object in the script below has been updated with your keys.
+          
+      2.  **Enable Firebase Services**:
+          - In your Firebase project, go to "Authentication" and enable the "Email/Password" provider.
+          - Go to "Firestore Database", create a database, and start in "production mode".
+          
+      3.  **Set Firestore Security Rules**:
+          - In the Firestore "Rules" tab, paste the following rules to secure your data:
+          
+          rules_version = '2';
+          service cloud.firestore {
+            match /databases/{database}/documents {
+              match /users/{userId} { allow read: if request.auth != null; allow write: if request.auth.uid == userId; }
+              match /orders/{orderId} {
+                allow create: if request.auth != null && request.resource.data.customerId == request.auth.uid;
+                allow read, update: if request.auth.uid == resource.data.customerId || request.auth.uid == resource.data.artistId;
+              }
+              match /chats/{orderId}/messages/{messageId} {
+                allow read, create: if get(/databases/$(database)/documents/orders/$(orderId)).data.customerId == request.auth.uid 
+                                     || get(/databases/$(database)/documents/orders/$(orderId)).data.artistId == request.auth.uid;
+              }
+            }
+          }
+    -->
+
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --blue: #2196f3; --purple: #9c27b0; --black: #1a1a1a;
+            --white: #ffffff; --light-gray: #f9f9f9; --error-red: #e74c3c;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Poppins', sans-serif; background-color: var(--white); color: var(--black); }
+        .container { width: 90%; max-width: 1200px; margin: 0 auto; }
+        .hidden { display: none !important; }
+
+        /* --- Animations & Loaders --- */
+        .fade-in { animation: fadeIn 0.8s ease-in-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-on-scroll { opacity: 0; transform: translateY(30px); transition: opacity 0.6s ease-out, transform 0.6s ease-out; }
+        .animate-on-scroll.visible { opacity: 1; transform: translateY(0); }
+        #loader-wrapper { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid var(--blue); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* --- Buttons --- */
+        .btn { display: inline-block; padding: 12px 30px; border-radius: 50px; text-decoration: none; font-weight: 600; transition: all 0.3s ease; border: 2px solid transparent; cursor: pointer; }
+        .btn-primary { background-color: var(--blue); color: var(--white); border-color: var(--blue); }
+        .btn-primary:hover { background-color: var(--purple); border-color: var(--purple); transform: translateY(-3px); box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .btn-secondary { background-color: transparent; color: var(--white); border-color: var(--white); }
+        .btn-secondary:hover { background-color: var(--white); color: var(--purple); }
+
+        /* --- Homepage --- */
+        .header { position: absolute; top: 0; left: 0; width: 100%; z-index: 100; padding: 20px 0; }
+        .public-nav { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 1.8rem; font-weight: 700; color: var(--white); text-decoration: none; }
+        .hero { padding: 180px 0 120px 0; text-align: center; color: var(--white); background-image: linear-gradient(135deg, rgba(33, 150, 243, 0.85), rgba(156, 39, 176, 0.85)), url('https://www.transparenttextures.com/patterns/lined-paper.png'); background-size: cover, auto; }
+        .hero h1 { font-size: clamp(2.5rem, 5vw, 4rem); font-weight: 900; margin-bottom: 20px; }
+        .hero p { font-size: 1.2rem; max-width: 650px; margin: 0 auto 40px auto; opacity: 0.9; }
+        .hero .cta-buttons { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        .section { padding: 80px 0; }
+        .section-title { text-align: center; font-size: 2.8rem; font-weight: 700; margin-bottom: 50px; }
+        .services-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px; }
+        .service-card { background: var(--white); padding: 30px; text-align: center; border-radius: 16px; box-shadow: 0 4px 25px rgba(0,0,0,0.07); cursor: pointer; transition: all 0.3s ease; }
+        .service-card:hover { transform: translateY(-5px); box-shadow: 0 8px 30px rgba(0,0,0,0.12); }
+        .service-card .icon { font-size: 3rem; color: var(--blue); margin-bottom: 20px; }
+
+        /* --- Modals --- */
+        .modal-wrapper { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); z-index: 200; display: flex; justify-content: center; align-items: center; }
+        .modal-content { background: var(--white); width: 90%; max-width: 450px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); animation: fadeIn 0.4s; position: relative; }
+        .modal-close-btn { position: absolute; top: 10px; right: 15px; background: none; border: none; font-size: 2rem; cursor: pointer; color: #aaa; }
+        .modal-body { padding: 30px; }
+        .input-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 500; }
+        .form-input, textarea, select { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-family: 'Poppins', sans-serif; font-size: 1rem; }
+        #error-message { color: var(--error-red); text-align: center; margin-top: 15px; min-height: 20px; }
+
+        /* --- User Dashboard --- */
+        #user-dashboard-wrapper { min-height: 100vh; }
+        .dashboard-header { padding: 15px 5%; background: var(--white); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .dashboard-header .logo { color: var(--purple); text-decoration: none; font-weight: 700; }
+        .dashboard-nav a { margin: 0 15px; text-decoration: none; color: var(--black); font-weight: 500; padding: 10px 0; border-bottom: 3px solid transparent; }
+        .dashboard-nav a.active { color: var(--blue); border-bottom-color: var(--blue); }
+        #logout-btn { background: none; border: 2px solid var(--error-red); color: var(--error-red); padding: 8px 15px; border-radius: 20px; cursor: pointer; }
+        #dashboard-content { padding: 40px 5%; }
+        
+        /* --- Artist Cards --- */
+        .artist-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 30px; }
+        .artist-card { background: var(--white); border-radius: 16px; box-shadow: 0 4px 25px rgba(0,0,0,0.07); text-align: center; overflow: hidden; }
+        .artist-card img { width: 100%; height: 280px; object-fit: cover; background-color: #eee; }
+        .artist-card-content { padding: 20px; }
+        .artist-card-content .btn { margin-top: 15px; width: 100%; }
+        
+        /* --- Footer --- */
+        .footer { background: var(--black); color: var(--white); padding: 50px 0; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="loader-wrapper" class="hidden"><div class="loader"></div></div>
+    
+    <div id="public-wrapper">
+        <header class="header"><div class="container"><nav class="public-nav"><a href="#" class="logo">NINZA ART</a><button data-action="show-auth" data-view="login" class="btn btn-secondary">Login / Sign Up</button></nav></div></header>
+        <main>
+            <section class="hero"><div class="container animate-on-scroll"><h1>🎨 Where Your Imagination Becomes Art</h1><p>From timeless pencil sketches to vibrant portraits, NINZA ART connects you with skilled artists who bring your vision to life.</p><div class="cta-buttons"><button data-action="show-image-modal" class="btn btn-primary"><i class="fas fa-camera"></i> Start with an Image</button><button data-action="show-auth" data-view="signup" data-role="artist" class="btn btn-secondary">Become an Artist</button></div></div></section>
+            <section id="services" class="section"><div class="container"><h2 class="section-title animate-on-scroll">Our Services</h2><div class="services-grid" data-action="service-select"><div class="service-card animate-on-scroll" data-service="Pencil Sketch"><div class="icon"><i class="fas fa-pencil-alt"></i></div><h3>Pencil Sketch</h3><p>Classic black-and-white artistry.</p></div><div class="service-card animate-on-scroll" data-service="Color Sketch"><div class="icon"><i class="fas fa-palette"></i></div><h3>Color Sketch</h3><p>Bright, vivid colors for a lively impression.</p></div><div class="service-card animate-on-scroll" data-service="Digital Portrait"><div class="icon"><i class="fas fa-desktop"></i></div><h3>Digital Portrait</h3><p>Modern and clean, perfect for gifts.</p></div><div class="service-card animate-on-scroll" data-service="Custom Artwork"><div class="icon"><i class="fas fa-drafting-compass"></i></div><h3>Custom Artwork</h3><p>You dream it, our artists create it.</p></div></div></div></section>
+            <section class="section" style="background-color: var(--light-gray);"><div class="container"><h2 class="section-title animate-on-scroll">Meet Our Masters of Creativity</h2><div class="artist-grid" id="featured-artists-grid"></div></div></section>
+        </main>
+        <footer class="footer"><h3>Follow Us</h3><div class="social-links"><a href="https://www.instagram.com/__soumyachoudhary/" target="_blank"><i class="fab fa-instagram"></i></a><a href="https://www.instagram.com/Classy.thinker/" target="_blank"><i class="fab fa-instagram"></i></a><a href="https://www.youtube.com/@soumya_Artvlog" target="_blank"><i class="fab fa-youtube"></i></a></div></footer>
+    </div>
+
+    <div id="user-dashboard-wrapper" class="hidden">
+        <header class="dashboard-header"><a href="#" class="logo">NINZA ART</a><nav class="dashboard-nav" data-action="navigate-dashboard"><a href="#" data-page="home" class="active">Home</a><a href="#" data-page="browse">Browse Artists</a><a href="#" data-page="orders">My Orders</a></nav><button id="logout-btn">Logout</button></header>
+        <main id="dashboard-content"></main>
+    </div>
+
+    <div id="modal-wrapper"></div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const firebaseConfig = {
+              apiKey: "AIzaSyDluVa4cbT-2NtQhDzMW3pfQCohof6ozBc",
+              authDomain: "sketch-order.firebaseapp.com",
+              projectId: "sketch-order",
+              storageBucket: "sketch-order.firebasestorage.app",
+              messagingSenderId: "874682239228",
+              appId: "1:874682239228:web:ce2df767a848b045a9ef79"
+            };
+
+            try { firebase.initializeApp(firebaseConfig); } catch (e) { console.error("Firebase init failed:", e); }
+            const auth = firebase.auth();
+            const db = firebase.firestore();
+
+            const state = { currentUser: null, artRequest: { service: null, imageUrl: null } };
+            const ui = {
+                publicWrapper: document.getElementById('public-wrapper'),
+                dashboardWrapper: document.getElementById('user-dashboard-wrapper'),
+                modalWrapper: document.getElementById('modal-wrapper'),
+                loader: document.getElementById('loader-wrapper'),
+                dashboardNav: document.querySelector('.dashboard-nav'),
+                dashboardContent: document.getElementById('dashboard-content')
+            };
+
+            const templates = {
+                auth: (view) => `<div class="modal-wrapper"><div class="modal-content"><button class="modal-close-btn" data-action="close-modal">&times;</button><div class="modal-body">${view === 'login' ? templates.loginForm() : templates.signupForm()}<p id="error-message"></p></div></div></div>`,
+                loginForm: () => `<form id="login-form"><h2>Login</h2><div class="input-group"><label>Email</label><input type="email" id="login-email" class="form-input" required></div><div class="input-group"><label>Password</label><input type="password" id="login-password" class="form-input" required></div><button type="submit" class="btn btn-primary" style="width:100%">Login</button></form>`,
+                signupForm: () => `<form id="signup-form"><h2>Create Account</h2><div class="input-group"><label>Full Name</label><input type="text" id="signup-name" class="form-input" required></div><div class="input-group"><label>Email</label><input type="email" id="signup-email" class="form-input" required></div><div class="input-group"><label>Password</label><input type="password" id="signup-password" class="form-input" required></div><div class="input-group"><label>I am a...</label><select id="signup-role" class="form-input"><option value="user">User</option><option value="artist">Artist</option></select></div><button type="submit" class="btn btn-primary" style="width:100%">Create Account</button></form>`,
+                imageModal: () => `<div class="modal-wrapper"><div class="modal-content"><button class="modal-close-btn" data-action="close-modal">&times;</button><div class="modal-body"><h2>Add a Reference Image</h2><p style="font-size:0.9em;color:#777;margin-bottom:15px;">Upload to a service like <a href="https://imgbb.com/" target="_blank" style="color:var(--blue)">ImgBB</a> and paste the URL.</p><form id="image-url-form"><div class="input-group"><label>Image URL</label><input type="url" id="image-url-input" class="form-input" placeholder="https://..." required></div><button type="submit" class="btn btn-primary" style="width:100%">Continue</button></form></div></div></div>`,
+                order: (artist) => `<div class="modal-wrapper"><div class="modal-content"><button class="modal-close-btn" data-action="close-modal">&times;</button><div class="modal-body"><h2>Order from ${artist.name}</h2><form id="order-form" data-artist-id="${artist.uid}"><p style="font-size:0.9em;color:#777;">Service: ${state.artRequest.service}</p><p style="font-size:0.9em;color:#777;margin-bottom:15px;word-break:break-all;">Image: ${state.artRequest.imageUrl}</p><div class="input-group"><label>Additional Notes</label><textarea id="order-desc" class="form-input" rows="4"></textarea></div><button type="submit" class="btn btn-primary" style="width:100%">Confirm Order</button></form></div></div></div>`,
+                artistCard: (artist) => `<div class="card artist-card animate-on-scroll"><img src="https://i.pravatar.cc/300?u=${artist.uid}" alt="${artist.name}"><div class="artist-card-content"><h3>${artist.name}</h3><button class="btn btn-primary" data-action="show-order" data-artist-id="${artist.uid}">Order Now</button></div></div>`
+            };
+            
+            const render = {
+                async dashboardView(page) {
+                    ui.dashboardNav.querySelectorAll('a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
+                    ui.loader.classList.remove('hidden');
+                    let html = '';
+                    try {
+                        switch(page) {
+                            case 'home': html = `<h2>Welcome, ${state.currentUser.name}!</h2><p>Select a tab to begin.</p>`; break;
+                            case 'browse':
+                                const artists = await db.collection('users').where('role', '==', 'artist').get();
+                                html = `<h2>Browse All Artists</h2><p>Select an artist to begin your order.</p><div class="artist-grid">${artists.docs.map(doc => templates.artistCard(doc.data())).join('')}</div>`;
+                                break;
+                            case 'orders':
+                                const orders = await db.collection('orders').where('customerId', '==', state.currentUser.uid).orderBy('createdAt', 'desc').get();
+                                html = '<h2>My Orders</h2>';
+                                if (orders.empty) { html += '<p>You have no orders yet.</p>'; }
+                                else { html += orders.docs.map(doc => { const order = doc.data(); return `<div class="order-list-item"><div><strong>${order.artType}</strong><br><span style="font-size:0.9em;color:#777;">Ref: <a href="${order.imageUrl}" target="_blank">Image</a> | Status: ${order.status}</span></div><button class="btn btn-primary" data-action="show-chat" data-order-id="${doc.id}">View Chat</button></div>`; }).join(''); }
+                                break;
+                        }
+                    } catch (err) { console.error(err); html = '<h2>Error loading content.</h2>'; }
+                    ui.dashboardContent.innerHTML = html;
+                    ui.loader.classList.add('hidden');
+                },
+                modal(html) { ui.modalWrapper.innerHTML = html; }
+            };
+
+            const actions = {
+                async handle(e) {
+                    const target = e.target.closest('[data-action]');
+                    if (!target) return;
+                    const { action, view, role, service, artistId } = target.dataset;
+
+                    switch(action) {
+                        case 'show-auth': render.modal(templates.auth(view, role)); break;
+                        case 'close-modal': render.modal(''); break;
+                        case 'show-image-modal': render.modal(templates.imageModal()); break;
+                        case 'service-select':
+                            if (e.target.closest('.service-card')) {
+                                state.artRequest.service = e.target.closest('.service-card').dataset.service;
+                                if (!state.artRequest.imageUrl) {
+                                    render.modal(templates.imageModal());
+                                } else {
+                                    if (!state.currentUser) return render.modal(templates.auth('login'));
+                                    render.dashboardView('browse');
+                                }
+                            }
+                            break;
+                        case 'show-order':
+                            if (!state.currentUser) return render.modal(templates.auth('login'));
+                            if (!state.artRequest.service || !state.artRequest.imageUrl) return render.modal(templates.imageModal());
+                            ui.loader.classList.remove('hidden');
+                            const artistDoc = await db.collection('users').doc(artistId).get();
+                            if(artistDoc.exists) render.modal(templates.order(artistDoc.data()));
+                            ui.loader.classList.add('hidden');
+                            break;
+                        case 'show-chat': alert("Real-time chat is coming soon!"); break;
+                        case 'navigate-dashboard': if (e.target.tagName === 'A') { e.preventDefault(); render.dashboardView(e.target.dataset.page); } break;
+                    }
+                },
+                async handleSubmit(e) {
+                    e.preventDefault();
+                    ui.loader.classList.remove('hidden');
+                    const errorMessageEl = document.getElementById('error-message');
+                    if (errorMessageEl) errorMessageEl.textContent = '';
+                    
+                    try {
+                        switch(e.target.id) {
+                            case 'login-form': await auth.signInWithEmailAndPassword(e.target.querySelector('#login-email').value, e.target.querySelector('#login-password').value); break;
+                            case 'signup-form':
+                                const role = e.target.querySelector('#signup-role').value;
+                                const name = e.target.querySelector('#signup-name').value;
+                                const email = e.target.querySelector('#signup-email').value;
+                                const password = e.target.querySelector('#signup-password').value;
+                                const cred = await auth.createUserWithEmailAndPassword(email, password);
+                                await db.collection("users").doc(cred.user.uid).set({ uid: cred.user.uid, name, email, role, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                                break;
+                            case 'image-url-form':
+                                state.artRequest.imageUrl = e.target.querySelector('#image-url-input').value;
+                                render.modal('');
+                                if (!state.currentUser) return render.modal(templates.auth('login'));
+                                render.dashboardView('browse');
+                                break;
+                            case 'order-form':
+                                await db.collection('orders').add({
+                                    customerId: state.currentUser.uid, artistId: e.target.dataset.artistId, status: 'pending',
+                                    artType: state.artRequest.service, imageUrl: state.artRequest.imageUrl,
+                                    description: e.target.querySelector('#order-desc').value,
+                                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                                });
+                                render.modal(''); render.dashboardView('orders');
+                                break;
+                        }
+                    } catch (err) { if (errorMessageEl) errorMessageEl.textContent = err.message; }
+                    finally { ui.loader.classList.add('hidden'); }
+                }
+            };
+            
+            auth.onAuthStateChanged(user => {
+                ui.loader.classList.remove('hidden');
+                if (user) {
+                    db.collection('users').doc(user.uid).get().then(doc => {
+                        if (doc.exists) {
+                            state.currentUser = { uid: user.uid, ...doc.data() };
+                            // *** THIS IS THE CRITICAL CHANGE ***
+                            if (state.currentUser.role === 'artist') {
+                                // Redirect artists to the artist panel
+                                window.location.href = 'artist.html'; 
+                            } else {
+                                // Show dashboard for users
+                                ui.publicWrapper.classList.add('hidden'); 
+                                ui.dashboardWrapper.classList.remove('hidden');
+                                render.dashboardView('home');
+                            }
+                        } else { auth.signOut(); } // If no user doc, sign out
+                    }).catch(() => auth.signOut()).finally(() => ui.loader.classList.add('hidden'));
+                } else {
+                    state.currentUser = null;
+                    ui.publicWrapper.classList.remove('hidden'); 
+                    ui.dashboardWrapper.classList.add('hidden');
+                    ui.loader.classList.add('hidden');
+                }
+            });
+
+            document.body.addEventListener('click', actions.handle);
+            document.body.addEventListener('submit', actions.handleSubmit);
+            document.getElementById('logout-btn').addEventListener('click', () => auth.signOut());
+
+            // Initial render of featured artists
+            db.collection('users').where('role', '==', 'artist').limit(3).get().then(snapshot => {
+                document.getElementById('featured-artists-grid').innerHTML = snapshot.docs.map(doc => templates.artistCard(doc.data())).join('');
+                // Setup scroll animations after content is loaded
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+                }, { threshold: 0.1 });
+                document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
+            });
+        });
+    </script>
+</body>
+</html>
